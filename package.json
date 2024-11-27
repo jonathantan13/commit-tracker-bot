@@ -1,7 +1,7 @@
 {
   "name": "butterbot_2.0",
   "version": "1.0.0",
-  "description": "An all-in-one discord bot for @packyourbag's personal needs.",
+  "description": "An all-in-one discord bot for @packyourbags' personal needs.",
   "main": "src/index.js",
   "scripts": {
     "start": "nodemon src/index",

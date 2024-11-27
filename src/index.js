@@ -9,6 +9,7 @@ const {
   Permissions,
   ActivityType,
   SlashCommandBuilder,
+  SharedSlashCommandOptions,
 } = require("discord.js");
 
 const client = new Client({
@@ -28,25 +29,29 @@ client.on(Events.ClientReady, (client) => {
     .setName("ping") // <--- command names must be lowercase
     .setDescription("Replies with pong!");
 
-  const hello = new SlashCommandBuilder()
-    .setName("hello")
-    .setDescription("This is a hello command!");
+  const test = new SlashCommandBuilder()
+    .setName("test")
+    .setDescription("test")
+    .addStringOption((option) =>
+      option.setName("input").setDescription("Enter input").setRequired(true)
+    );
 
-  client.application.commands.create(ping); // <--- Can pass in guild ID as a second argument, this will only allow specified guilds access to the command.
-  client.application.commands.create(hello);
+  client.application.commands.create(ping); // <--- Can pass in guild ID as a second argument, this will only give specified guilds (servers) access to the command.
+  client.application.commands.create(test);
 });
 
-client.on("interactionCreate", (interaction) => {
+client.on(Events.InteractionCreate, (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
   if (interaction.commandName == "ping") {
     interaction.reply("Pong!");
   }
-  if (interaction.commandName == "hello") {
-    interaction.reply(
-      "Hello new world all the boys and girls I got some true stories to tell!"
-    );
+  if (interaction.commandName == "test") {
+    const userInput = interaction.options.getString("input");
+
+    interaction.reply(`You said: ${userInput}`);
   }
 });
 
+// Replace with discord bot token
 client.login(process.env.TOKEN);
