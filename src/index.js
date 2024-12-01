@@ -4,13 +4,11 @@ const {
   Client,
   Events,
   GatewayIntentBits,
-  EmbedBuilder,
-  PermissionsBitField,
-  Permissions,
   ActivityType,
   SlashCommandBuilder,
-  SharedSlashCommandOptions,
 } = require("discord.js");
+
+const fetch = require("node-fetch"); // Using an older version of node fetch
 
 const client = new Client({
   intents: [
@@ -20,38 +18,89 @@ const client = new Client({
   ],
 });
 
+let githubRepo = "";
+let lastCommitSha = null;
+let channelId = null;
+
 client.on(Events.ClientReady, (client) => {
   console.log(`${client.user.tag} is ready!`);
   client.user.setActivity("new commits", {
     type: ActivityType.Watching,
   });
-  const ping = new SlashCommandBuilder()
-    .setName("ping") // <--- command names must be lowercase
-    .setDescription("Replies with pong!");
 
-  const test = new SlashCommandBuilder()
-    .setName("test")
-    .setDescription("test")
+  const repository = new SlashCommandBuilder()
+    .setName("repo") // <--- command names must be lowercase
+    .setDescription("Accepts github repository url as a parameter.")
     .addStringOption((option) =>
-      option.setName("input").setDescription("Enter input").setRequired(true)
+      option
+        .setName("repository")
+        .setDescription("Enter your GitHub repository's url.")
+        .setRequired(true)
     );
 
-  client.application.commands.create(ping); // <--- Can pass in guild ID as a second argument, this will only give specified guilds (servers) access to the command.
-  client.application.commands.create(test);
+  client.application.commands.create(repository); // <--- Can pass in guild ID as a second argument. This will only give specified guilds (servers) access to the command.
+
+  setInterval(fetchCommits, 60000); // Checks every minute
 });
 
 client.on(Events.InteractionCreate, (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
-  if (interaction.commandName == "ping") {
-    interaction.reply("Pong!");
-  }
-  if (interaction.commandName == "test") {
-    const userInput = interaction.options.getString("input");
+  if (interaction.commandName == "repo") {
+    repoUrl = interaction.options.getString("repository");
 
-    interaction.reply(`You said: ${userInput}`);
+    const match = repoUrl.match(/https:\/\/github\.com\/([^/]+)\/([^/]+)/); // Regex for checking user input
+
+    if (!match) {
+      return interaction.reply(
+        "Invalid GitHub repository URL, please try again!"
+      );
+    }
+    channelId = interaction.channelId;
+
+    const [, owner, repo] = match;
+    githubRepo = `${owner}/${repo}`;
+
+    interaction.reply(`Tracking github repository: ${githubRepo}`);
   }
 });
+
+async function fetchCommits() {
+  if (!githubRepo || !channelId) return;
+
+  const url = `https://api.github.com/repos/${githubRepo}/commits`;
+  const headers = {
+    Accept: "application/vnd.github.v3.json",
+    Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+  };
+
+  try {
+    const response = await fetch(url, { headers });
+
+    if (!response.ok) return;
+
+    const commits = await response.json();
+
+    if (commits.length > 0) {
+      const latestCommit = commits[0];
+
+      if (latestCommit.sha !== lastCommitSha) {
+        lastCommitSha = latestCommit.sha;
+
+        const commitMessage =
+          `**New Commit in ${githubRepo}**\n` +
+          `Message: ${latestCommit.commit.message}\n` +
+          `Author: ${latestCommit.commit.author.name}\n` +
+          `URL: ${latestCommit.html_url}`;
+
+        const channel = client.channels.cache.get(channelId);
+        if (channel) channel.send(commitMessage);
+      }
+    }
+  } catch (error) {
+    console.error("Error fetching commits:", error);
+  }
+}
 
 // Replace with discord bot token
 client.login(process.env.TOKEN);
